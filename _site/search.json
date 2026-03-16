@@ -2,15 +2,28 @@
   {
     "objectID": "index.html",
     "href": "index.html",
-    "title": "quarto_port",
+    "title": "Home",
     "section": "",
     "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
   },
   {
     "objectID": "about.html",
     "href": "about.html",
-    "title": "About",
+    "title": "Alton Law",
     "section": "",
-    "text": "About this site\n\n1 + 1\n\n[1] 2"
+    "text": "I am an undergraduate student in the Department of Statistics & Data Science at UCLA. My work focuses on the intersection of statistical modeling and computational data science, with a particular interest in solving complex spatial and predictive problems. I have a strong foundation in geostatistics, Monte Carlo simulations, and supervised learning methods like linear regressions and decision trees.",
+    "crumbs": [
+      "About"
+    ]
+  },
+  {
+    "objectID": "about.html#education",
+    "href": "about.html#education",
+    "title": "Alton Law",
+    "section": "Education",
+    "text": "Education\nUniversity of California, Los Angeles | Los Angeles, CA\nBachelor in Statistics | Sept 2024 - June 2026",
+    "crumbs": [
+      "About"
+    ]
   }
 ]

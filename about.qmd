@@ -1,9 +1,20 @@
 ---
-title: "About"
+title: "Alton Law"
+about:
+  template: jolla
+  links:
+    - icon: github
+      text: Github
+      href: https://github.com/alawmans
+    - icon: envelope
+      text: Email
+      href: mailto:alaw35@ucla.edu
 ---
 
-About this site
+I am an undergraduate student in the Department of Statistics & Data Science at UCLA. My work focuses on the intersection of statistical modeling and computational data science, with a particular interest in solving complex spatial and predictive problems. I have a strong foundation in geostatistics, Monte Carlo simulations, and supervised learning methods like linear regressions and decision trees.
 
-```{r}
-1 + 1
-```
+
+## Education
+
+**University of California, Los Angeles** | Los Angeles, CA \
+Bachelor in Statistics | Sept 2024 - June 2026

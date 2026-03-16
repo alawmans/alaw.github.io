@@ -1,19 +1,26 @@
 project:
   type: website
+  output-dir: docs
 
 website:
-  title: "quarto_port"
-  navbar:
-    left:
-      - href: index.qmd
-        text: Home
-      - about.qmd
+  title: "Alton Law"
+  sidebar:
+    search: true
+    style: "docked"
+    background: "light"
+    foreground: "primary"
+    border: true
+    contents: 
+      - text: About
+        file: about.qmd
+      - text: Projects
+        file: Projects.qmd
+      - text: Experience
+        file: Experience.qmd
 
 format:
   html:
-    theme:
-      - cosmo
-      - brand
+    theme: journal #sketchy, cerulean, cyborg, journal, materia, quartz, morph
     css: styles.css
     toc: true
 
