@@ -3,3 +3,18 @@ title: "Projects"
 format: html
 ---
 
+<details>
+
+<summary>Click to view: LA Housing Project</summary>
+
+{{< include Final_report.qmd >}}
+
+</details>
+
+<details>
+
+<summary>Click to view:</summary>
+
+{{< include Final_report.qmd >}}
+
+</details>
