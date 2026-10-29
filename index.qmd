@@ -4,14 +4,16 @@ title: "Home"
 
 ## Welcome
 
-I am an undergraduate student in the **Department of Statistics and Data Science** at UCLA. My wor focuses on using machine learning models to make predictions and linear regression to derive insights from complex datasets.
+I am an undergraduate student in the **Department of Statistics and Data Science** at UCLA. My work focuses on using machine learning models to make predictions and linear regression to derive insights from complex datasets.
 
 ## Skills
 
 -   **Geostatistics:** Spatial interpolation and kriging
 -   **Simulations:** Developing Monte Carlo methods for modeling
--   **Machine Learning:** fitting and optimizing predictive models
+-   **Machine Learning:** Fitting and optimizing predictive models
 
 ## Featured Project
 
-**Spatial Analysis of Los Angeles Real Estate** [View Project Details →](Projects.qmd)
+**Spatial Analysis of Los Angeles Real Estate**: estimating a continuous housing price surface for the City of Los Angeles with universal kriging. [View project →](projects/la-housing-kriging.qmd)
+
+[See all projects →](Projects.qmd)

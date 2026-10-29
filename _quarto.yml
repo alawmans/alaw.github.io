@@ -1,6 +1,10 @@
 project:
   type: website
-  output-dir: docs
+  output-dir: docs          # GitHub Pages serves this folder (Settings > Pages > main /docs)
+  execute-dir: project      # read data files relative to the project root
+  render:
+    - "*.qmd"
+    - "projects/*.qmd"
 
 website:
   title: "Alton Law"
@@ -10,7 +14,9 @@ website:
     background: "light"
     foreground: "primary"
     border: true
-    contents: 
+    contents:
+      - text: Home
+        file: index.qmd
       - text: About
         file: about.qmd
       - text: Projects
@@ -23,6 +29,13 @@ format:
     theme: journal #sketchy, cerulean, cyborg, journal, materia, quartz, morph
     css: styles.css
     toc: true
+    code-fold: true          # code is available but collapsed so results lead
+    code-summary: "Show code"
+    code-tools: true         # adds a "Code" menu to show/hide all code at once
+
+execute:
+  message: false             # hide package startup messages
+  warning: false             # hide package warnings
+  freeze: auto               # only re-run code when a page's source changes
 
 editor: visual
-

@@ -1,20 +1,12 @@
 ---
 title: "Projects"
-format: html
+listing:
+  contents: projects
+  type: default
+  sort: "date desc"
+  categories: true
+  fields: [date, title, description, categories]
+  date-format: "MMM YYYY"
 ---
 
-<details>
-
-<summary>Click to view: LA Housing Project</summary>
-
-{{< include Final_report.qmd >}}
-
-</details>
-
-<details>
-
-<summary>Click to view:</summary>
-
-{{< include Final_report.qmd >}}
-
-</details>
+Statistical analyses written in R. Each project page includes the full code (folded by default) alongside the results.

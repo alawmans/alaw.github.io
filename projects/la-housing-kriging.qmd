@@ -1,0 +1,346 @@
+---
+title: "Spatial Analysis of Los Angeles Real Estate"
+description: "Estimating a continuous housing price surface for the City of Los Angeles with universal kriging, validated by leave-one-out cross-validation."
+author: "Alton Law"
+date: "2026-03-03"
+categories: [Geostatistics, Kriging, R]
+---
+
+## Overview
+
+House prices are spatially dependent: homes close to each other tend to sell for similar amounts. This project uses that dependence to estimate a continuous **price surface** for the City of Los Angeles from a sample of individual property listings, using **universal kriging**. I then check how well the surface predicts prices it has not seen with leave-one-out cross-validation, and use the kriged estimate as a predictor in a regression on price.
+
+**Data**
+
+-   **2024 listings** (`LA_Property_Listing.csv`): individual LA property listings with price, living area and coordinates. Listings under \$200k are dropped as likely non-standard sales.
+-   **1990 census data** (`housing.csv`): the California Housing dataset of block-group median house values, clipped to LA County for a historical comparison.
+-   **Boundaries:** LA County outline from Code for America and the official City of Los Angeles boundary from the US Census Bureau (via `tigris`).
+
+## Data preparation
+
+```{r}
+#| label: load-data
+library(dplyr)
+data1990 <- read.csv("housing.csv")
+data2024 <- read.csv("LA_Property_Listing.csv") %>% na.omit() %>% filter(price >= 200000)
+```
+
+The 1990 data covers all of California, so I keep only the block groups that fall inside the LA County boundary.
+
+```{r}
+#| label: clip-1990
+library(sf)
+library(maps)
+gdf <- st_as_sf(data1990, coords = c("longitude", "latitude"), crs = 4326)
+
+#download california county shapes
+ca_url <- "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/california-counties.geojson"
+counties <- st_read(ca_url, quiet = TRUE)
+
+#use la only
+la_boundary <- counties %>% filter(name == "Los Angeles")
+
+#Filter points that are inside the LA boundary
+la_points <- st_intersection(gdf, la_boundary)
+
+data1990 <- la_points %>%
+  mutate(
+    longitude = sf::st_coordinates(.)[,1],
+    latitude = sf::st_coordinates(.)[,2]
+  ) %>%
+  sf::st_drop_geometry() %>%
+  relocate(longitude, latitude, .before = 1)
+```
+
+## Exploring the raw prices
+
+Before modeling, it helps to see where the expensive and inexpensive properties are. Both maps use the same color scale, in units of \$100k.
+
+```{r}
+#| label: map-2024
+library(ggplot2)
+data2024$price_scaled <- data2024$price / 100000
+
+counties <- map_data("county")
+la_county <- counties %>% filter(region == "california", subregion == "los angeles")
+ggplot() +
+  geom_polygon(data = la_county, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "black") +
+  geom_point(data = data2024, aes(x = longitude, y = latitude, color = price_scaled), alpha = 0.5, size = 1) +
+  scale_color_gradientn(colors = c("blue", "green", "yellow", "orange", "red"),
+  name = "Price ($100k)",
+  values = c(0, 0.1, 0.3, 0.5,1)) +
+  coord_fixed(1.3) + # Keeps the map from looking "stretched"
+  theme_minimal() +
+  labs(title = "2024 Listing Prices in LA County",
+       x = "Longitude", y = "Latitude")
+```
+
+```{r}
+#| label: map-1990
+data1990$price_scaled <- data1990$median_house_value / 100000
+
+ggplot() +
+  geom_polygon(data = la_county, aes(x = long, y = lat, group = group),
+               fill = "gray95", color = "black") +
+  geom_point(data = data1990, aes(x = longitude, y = latitude, color = price_scaled), alpha = 0.5, size = 1) +
+  scale_color_gradientn(colors = c("blue", "green", "yellow", "orange", "red"),
+  name = "Price ($100k)") +
+  coord_fixed(1.3) + # Keeps the map from looking "stretched"
+  theme_minimal() +
+  labs(title = "Median House Values in LA County (1990)",
+       x = "Longitude", y = "Latitude")
+```
+
+The rest of the analysis focuses on the City of Los Angeles, using the Census Bureau's official city boundary.
+
+```{r}
+#| label: city-boundary
+library(tigris)
+options(tigris_use_cache = TRUE)
+
+ca_places <- places(state = "CA", cb = TRUE, progress_bar = FALSE)
+
+la_city_outline <- ca_places %>%
+  filter(NAME == "Los Angeles")
+```
+
+```{r}
+#| label: map-city
+ggplot() +
+  # Layer 1: The official City of Los Angeles border
+  geom_sf(data = la_city_outline, fill = "gray95", color = "black", linewidth = 0.5) +
+  # Layer 2: Housing data points
+  geom_point(data = data2024, aes(x = longitude, y = latitude, color = price_scaled), alpha = 0.5, size = 1) +
+  # Styling
+  scale_color_gradientn(colors = c("blue", "green", "yellow", "orange", "red"),
+  name = "Price ($100k)",
+  values = c(0, 0.1, 0.3, 0.5,1)) +
+  theme_minimal() +
+  labs(title = "Properties within Los Angeles City Limits",
+       subtitle = "Using official US Census Bureau boundaries")
+```
+
+## Modeling spatial dependence: the variogram
+
+Kriging needs distances in real units, so I project the data from latitude/longitude to the California State Plane Zone V coordinate system (EPSG:2229, in feet).
+
+I model **log price** rather than price. Prices are strongly right-skewed, and on the log scale a few very expensive properties don't dominate the fit. Including the x and y coordinates in the formula removes any linear trend across the city, so the variogram describes the spatial dependence that remains after that trend.
+
+```{r}
+#| label: project-data
+library(gstat)
+library(terra)
+library(tidyterra)
+#Convert the city outline and data to a projected coordinate system
+#(Kriging works better with meters/feet than Lat/Long degrees)
+la_sf <- st_as_sf(data2024, coords = c("longitude", "latitude"), crs = 4326) %>% st_transform(2229)
+
+la_border_proj <- ca_places %>%
+  filter(NAME == "Los Angeles") %>%
+  st_transform(2229)
+```
+
+```{r}
+#| label: sample-variogram
+coords <- st_coordinates(la_sf)
+
+la_sf <- la_sf %>%
+  mutate(
+    x_coord = coords[, "X"],
+    y_coord = coords[, "Y"]
+  )
+
+#detrend data
+v_sample <- variogram(log(price) ~ x_coord + y_coord, la_sf)
+plot(v_sample, main = "Sample Variogram (Distances in Feet)")
+```
+
+The sample variogram measures how different two properties' (detrended) log prices are, on average, as a function of the distance between them. Semivariance rising with distance means nearby properties are more alike than distant ones. I fit a **spherical model**, which has three parameters:
+
+-   **Nugget:** variation between properties at essentially the same location (measurement error and house-to-house differences).
+-   **Sill:** the level where the curve flattens out, the total variation.
+-   **Range:** the distance beyond which properties are effectively uncorrelated.
+
+```{r}
+#| label: fit-variogram
+v_fit <- fit.variogram(v_sample, model = vgm(model = "Sph", psill = 0.25, range = 50000, nugget = 0.25))
+
+plot(v_sample, v_fit, main = "Variogram Fit (Distances in Feet)")
+v_fit
+```
+
+## Kriging the price surface
+
+I predict log price on a 1,000 ft grid covering the city. Kriging can't handle two observations at exactly the same location, so properties sharing coordinates (such as units in the same building) are combined using the geometric mean of their prices. Each prediction uses the 50 nearest listings (`nmax = 50`) to keep the computation fast.
+
+```{r}
+#| label: build-grid
+r_template <- rast(vect(la_border_proj), res = 1000)
+grid_points <- as.points(r_template, values = FALSE) %>%
+  st_as_sf()
+
+grid_coords <- st_coordinates(grid_points)
+
+grid_points <- grid_points %>%
+  mutate(
+    x_coord = grid_coords[, "X"],
+    y_coord = grid_coords[, "Y"]
+  )
+
+#kriging needs unique locations, so average duplicates
+#also reduces the number of points, which makes kriging faster
+la_sf_unique <- la_sf %>%
+  group_by(x_coord, y_coord) %>%
+  summarize(
+    price = exp(mean(log(price))), # use geometric mean
+    .groups = "drop"
+  )
+```
+
+```{r}
+#| label: krige
+#| results: hide
+kriged_res <- krige(log(price) ~ x_coord + y_coord,
+                    locations = la_sf_unique,
+                    newdata = grid_points,
+                    model = v_fit,
+                    nmax = 50)
+```
+
+The predictions are back-transformed from log price to dollars with `exp()`. This gives an estimate of the typical (median) price at each location rather than the mean.
+
+```{r}
+#| label: map-surface
+prediction_raster <- rasterize(vect(kriged_res), r_template, field = "var1.pred")
+
+final_raster <- exp(mask(prediction_raster, vect(la_border_proj)))
+
+ggplot() +
+  geom_spatraster(data = final_raster) +
+  geom_sf(data = la_border_proj, fill = NA, color = "white", linewidth = 0.3) +
+  scale_fill_viridis_c(option = "H",
+                       labels = scales::dollar,
+                       na.value = "transparent",
+                       values = c(0, 0.1, 0.4, 1)
+                       ) +
+  theme_minimal() +
+  labs(title = "LA Housing Price Surface",
+       subtitle = "Universal Kriging Prediction (1,000 ft Resolution)",
+       fill = "Predicted Price")
+```
+
+### Prediction uncertainty
+
+Kriging also gives the variance of each prediction. Because the model is on the log scale, I map the **standard error of log price**. A standard error of 0.3, for example, means the predicted price is uncertain by roughly ±30%. Uncertainty is lowest where listings are dense and grows in areas with few nearby listings.
+
+```{r}
+#| label: map-uncertainty
+variation_raster <- rasterize(vect(kriged_res), r_template, field = "var1.var")
+
+se_raster <- sqrt(mask(variation_raster, vect(la_border_proj)))
+
+ggplot() +
+  geom_spatraster(data = se_raster) +
+  geom_sf(data = la_border_proj, fill = NA, color = "white", linewidth = 0.3) +
+  scale_fill_viridis_c(option = "H",
+                       na.value = "transparent") +
+  theme_minimal() +
+  labs(title = "Kriging Prediction Uncertainty",
+       subtitle = "Standard error of log price (1,000 ft Resolution)",
+       fill = "SE (log price)")
+```
+
+## Validation: leave-one-out cross-validation
+
+To check the surface honestly, each location is removed in turn, its price is predicted from the remaining listings, and the prediction is compared with the actual price.
+
+```{r}
+#| label: cross-validate
+cv_results <- krige.cv(
+  formula = log(price) ~ x_coord + y_coord,
+  locations = la_sf_unique,
+  model = v_fit,
+  nmax = 50 # Keep nmax consistent with the map settings
+)
+```
+
+```{r}
+#| label: join-cv
+coords <- st_coordinates(cv_results)
+
+cv_results <- cv_results %>%
+  mutate(
+    x_coord = coords[, "X"],
+    y_coord = coords[, "Y"]
+  )
+
+cv_to_join <- cv_results %>%
+  st_drop_geometry()
+
+la_sf_validated <- la_sf %>%
+  left_join(cv_to_join, by = c("x_coord", "y_coord"))
+
+la_sf_validated$price_kriged <- exp(la_sf_validated$var1.pred)
+
+# summary of out-of-sample error
+cv_summary <- la_sf_validated %>%
+  st_drop_geometry() %>%
+  filter(!is.na(residual)) %>%
+  summarize(
+    `Properties validated` = n(),
+    `RMSE (log price)` = sqrt(mean(residual^2)),
+    `Median absolute % error` = scales::percent(median(abs(price - price_kriged) / price), accuracy = 0.1)
+  )
+knitr::kable(cv_summary, digits = 3)
+```
+
+The map below shows each property's cross-validation residual (actual minus predicted price). The color scale is centered at zero: red properties sold for more than their neighborhood would suggest and blue ones for less. Clusters of the same color would point to local price patterns the model misses.
+
+```{r}
+#| label: map-residuals
+la_sf_validated$resid_dollars <- la_sf_validated$price - la_sf_validated$price_kriged
+
+# cap the color scale so a few extreme listings don't wash out the map
+lim <- quantile(abs(la_sf_validated$resid_dollars), 0.95, na.rm = TRUE)
+
+ggplot() +
+  geom_sf(data = la_border_proj, fill = "gray95", color = "black", linewidth = 0.5) +
+  geom_point(data = la_sf_validated, aes(x = x_coord, y = y_coord, color = resid_dollars), alpha = 0.6, size = 1) +
+  scale_color_gradient2(low = "blue", mid = "gray85", high = "red", midpoint = 0,
+                        limits = c(-lim, lim), oob = scales::squish,
+                        labels = scales::dollar) +
+  theme_minimal() +
+  labs(title = "Cross-Validation Residuals",
+       subtitle = "Actual minus kriged price (color scale capped at the 95th percentile)",
+       color = "Residual", x = NULL, y = NULL)
+```
+
+## Combining location with property size
+
+Location isn't the only thing that sets price. Here I regress log price on the kriged (location-based) price estimate and the home's living area.
+
+```{r}
+#| label: regression
+model <- lm(log(price) ~ price_kriged + livingArea, data = la_sf_validated)
+summary(model)
+```
+
+```{r}
+#| label: diagnostics
+#| fig-height: 7
+par(mfrow = c(2,2))
+plot(model)
+```
+
+The diagnostic plots flag two outliers:
+
+-   **Row 659 (838 E 80th St)** is listed at \$11,000,000. Cross-referencing with Redfin shows the price should be \$1,100,000, so this is a data-entry error.
+-   **Row 647 (7342 Haskell Ave)** is unusually cheap because the buyer takes on the seller's debt as part of the purchase.
+
+## Limitations and next steps
+
+-   **Listings, not sales:** asking prices can differ from final sale prices.
+-   **Simple trend:** the trend is linear in the coordinates. Adding covariates such as distance to the coast or freeway access could explain more of the variation.
+-   **Stationarity:** a single variogram assumes spatial dependence works the same way across the whole city, which may not hold between, say, the Valley and the Westside.
+-   **Next:** compare kriging against machine-learning models (random forest, gradient boosting) using spatial cross-validation, and model price change between 1990 and 2024.
