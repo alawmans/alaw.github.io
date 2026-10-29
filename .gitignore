@@ -5,3 +5,9 @@
 
 /.quarto/
 **/*.quarto_ipynb
+
+# old output folder (site now renders to docs/)
+/_site/
+
+# macOS
+.DS_Store
