@@ -8,9 +8,9 @@ I am an undergraduate student in the **Department of Statistics and Data Science
 
 ## Skills
 
--   **Geostatistics:** Spatial interpolation and kriging
--   **Simulations:** Developing Monte Carlo methods for modeling
--   **Machine Learning:** Fitting and optimizing predictive models
+- **Geostatistics:** Spatial interpolation and kriging
+- **Simulations:** Developing Monte Carlo methods for modeling
+- **Machine Learning:** Fitting and optimizing predictive models
 
 ## Featured Project
 

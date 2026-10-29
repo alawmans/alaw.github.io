@@ -12,9 +12,9 @@ House prices are spatially dependent: homes close to each other tend to sell for
 
 **Data**
 
--   **2024 listings** (`LA_Property_Listing.csv`): individual LA property listings with price, living area and coordinates. Listings under \$200k are dropped as likely non-standard sales.
--   **1990 census data** (`housing.csv`): the California Housing dataset of block-group median house values, clipped to LA County for a historical comparison.
--   **Boundaries:** LA County outline from Code for America and the official City of Los Angeles boundary from the US Census Bureau (via `tigris`).
+- **2024 listings** (`LA_Property_Listing.csv`): individual LA property listings with price, living area and coordinates. Listings under \$200k are dropped as likely non-standard sales.
+- **1990 census data** (`housing.csv`): the California Housing dataset of block-group median house values, clipped to LA County for a historical comparison.
+- **Boundaries:** LA County outline from Code for America and the official City of Los Angeles boundary from the US Census Bureau (via `tigris`).
 
 ## Data preparation
 
@@ -158,9 +158,9 @@ plot(v_sample, main = "Sample Variogram (Distances in Feet)")
 
 The sample variogram measures how different two properties' (detrended) log prices are, on average, as a function of the distance between them. Semivariance rising with distance means nearby properties are more alike than distant ones. I fit a **spherical model**, which has three parameters:
 
--   **Nugget:** variation between properties at essentially the same location (measurement error and house-to-house differences).
--   **Sill:** the level where the curve flattens out, the total variation.
--   **Range:** the distance beyond which properties are effectively uncorrelated.
+- **Nugget:** variation between properties at essentially the same location (measurement error and house-to-house differences).
+- **Sill:** the level where the curve flattens out, the total variation.
+- **Range:** the distance beyond which properties are effectively uncorrelated.
 
 ```{r}
 #| label: fit-variogram
@@ -335,12 +335,12 @@ plot(model)
 
 The diagnostic plots flag two outliers:
 
--   **Row 659 (838 E 80th St)** is listed at \$11,000,000. Cross-referencing with Redfin shows the price should be \$1,100,000, so this is a data-entry error.
--   **Row 647 (7342 Haskell Ave)** is unusually cheap because the buyer takes on the seller's debt as part of the purchase.
+- **Row 659 (838 E 80th St)** is listed at \$11,000,000. Cross-referencing with Redfin shows the price should be \$1,100,000, so this is a data-entry error.
+- **Row 647 (7342 Haskell Ave)** is unusually cheap because the buyer takes on the seller's debt as part of the purchase.
 
 ## Limitations and next steps
 
--   **Listings, not sales:** asking prices can differ from final sale prices.
--   **Simple trend:** the trend is linear in the coordinates. Adding covariates such as distance to the coast or freeway access could explain more of the variation.
--   **Stationarity:** a single variogram assumes spatial dependence works the same way across the whole city, which may not hold between, say, the Valley and the Westside.
--   **Next:** compare kriging against machine-learning models (random forest, gradient boosting) using spatial cross-validation, and model price change between 1990 and 2024.
+- **Listings, not sales:** asking prices can differ from final sale prices.
+- **Simple trend:** the trend is linear in the coordinates. Adding covariates such as distance to the coast or freeway access could explain more of the variation.
+- **Stationarity:** a single variogram assumes spatial dependence works the same way across the whole city, which may not hold between, say, the Valley and the Westside.
+- **Next:** compare kriging against machine-learning models (random forest, gradient boosting) using spatial cross-validation, and model price change between 1990 and 2024.
